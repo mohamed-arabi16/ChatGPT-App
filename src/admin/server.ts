@@ -4,12 +4,31 @@
  */
 
 import express, { Request, Response, NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
 import { v4 as uuidv4 } from 'uuid';
 import { getDatabase } from '../db/connection';
 import { runMigrations } from '../db/migrate';
 
 const app = express();
 app.use(express.json());
+
+// Rate limiting - limit requests per IP
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: {
+    success: false,
+    error: {
+      message_ar: 'تم تجاوز الحد الأقصى للطلبات. يرجى المحاولة لاحقاً.',
+      message_en: 'Too many requests. Please try again later.',
+    },
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply rate limiting to all API routes
+app.use('/api/', limiter);
 
 // Initialize database
 runMigrations();
