@@ -1,0 +1,48 @@
+{
+  "name": "unitr-admissions-assistant",
+  "version": "1.0.0",
+  "description": "Turkish University Registration Assistant - ChatGPT App with MCP Server",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "start:mcp": "node dist/mcp-server.js",
+    "start:admin": "node dist/admin/server.js",
+    "dev": "ts-node src/index.ts",
+    "dev:mcp": "ts-node src/mcp-server.ts",
+    "test": "jest",
+    "test:unit": "jest tests/unit",
+    "test:integration": "jest tests/integration",
+    "test:golden": "jest tests/golden",
+    "db:migrate": "ts-node src/db/migrate.ts",
+    "db:seed": "ts-node src/db/seed.ts",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "chatgpt",
+    "mcp",
+    "turkish-universities",
+    "education"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.0.6",
+    "@types/uuid": "^10.0.0",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.2",
+    "better-sqlite3": "^11.10.0",
+    "express": "^4.22.1",
+    "express-rate-limit": "^7.5.1",
+    "uuid": "^9.0.1",
+    "zod": "^3.25.76"
+  }
+}
