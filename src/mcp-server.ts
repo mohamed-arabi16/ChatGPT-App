@@ -1,7 +1,15 @@
 /**
  * MCP Server for UniTR Admissions Assistant
  * Exposes tools for Turkish university program search, eligibility, and planning
- * Supports both stdio transport (default) and SSE transport (with --sse flag)
+ * 
+ * Transport modes:
+ * - stdio (default): For local development and CLI usage
+ * - sse: For HTTP-based access (ChatGPT integration)
+ * 
+ * Environment variables:
+ * - MCP_TRANSPORT: 'stdio' | 'sse' (default: 'stdio')
+ * - HOST: Bind address for SSE mode (default: '127.0.0.1', use '0.0.0.0' for public access)
+ * - PORT: Port for SSE mode (default: 3000)
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -233,6 +241,7 @@ function createServer(): Server {
   // Handle tool execution
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
+    log('info', 'tool_called', { tool: name });
     
     try {
       switch (name) {
@@ -328,108 +337,157 @@ function createServer(): Server {
   return server;
 }
 
+// Structured logging helper
+function log(level: 'info' | 'warn' | 'error', event: string, data?: Record<string, unknown>) {
+  const timestamp = new Date().toISOString();
+  const logData = { timestamp, level, event, ...data };
+  if (level === 'error') {
+    console.error(JSON.stringify(logData));
+  } else {
+    console.log(JSON.stringify(logData));
+  }
+}
+
 // Start server in stdio mode
 async function startStdioServer() {
   const server = createServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('UniTR MCP Server running on stdio');
+  log('info', 'server_started', { transport: 'stdio' });
 }
 
 // Start server in SSE mode
-async function startSseServer(port: number = 3000) {
-  const app = createMcpExpressApp();
+async function startSseServer(host: string = '127.0.0.1', port: number = 3000) {
+  // Configure Express app with appropriate host settings
+  const allowedHosts = host === '0.0.0.0' || host === '::' 
+    ? ['localhost', '127.0.0.1', '[::1]'] 
+    : undefined;
+  const app = createMcpExpressApp({ host, allowedHosts });
 
-  // SSE endpoint for establishing the stream (GET /sse)
-  app.get('/sse', async (req, res) => {
-    console.log('Received GET request to /sse (establishing SSE stream)');
+  // Health check endpoint
+  app.get('/health', (_req, res) => {
+    res.json({ ok: true });
+  });
+
+  // SSE endpoint handler (shared between /sse and /sse/)
+  const handleSseRequest = async (req: import('express').Request, res: import('express').Response) => {
+    log('info', 'sse_connection_attempt', { path: req.path });
     try {
       // Create a new SSE transport for the client
       // The endpoint for POST messages is '/messages'
       const transport = new SSEServerTransport('/messages', res);
       const sessionId = transport.sessionId;
+      if (!sessionId) {
+        throw new Error('Failed to generate session ID for SSE transport');
+      }
       transports[sessionId] = transport;
+
+      log('info', 'session_created', { sessionId });
 
       // Set up onclose handler to clean up transport when closed
       transport.onclose = () => {
-        console.log(`SSE transport closed for session ${sessionId}`);
+        log('info', 'session_closed', { sessionId });
         delete transports[sessionId];
       };
 
       // Connect the transport to a new MCP server instance
       const server = createServer();
       await server.connect(transport);
-      console.log(`Established SSE stream with session ID: ${sessionId}`);
     } catch (error) {
-      console.error('Error establishing SSE stream:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      log('error', 'sse_connection_error', { error: errorMessage });
       if (!res.headersSent) {
         res.status(500).send('Error establishing SSE stream');
       }
     }
-  });
+  };
 
-  // Messages endpoint for receiving client JSON-RPC requests (POST /messages)
-  app.post('/messages', async (req, res) => {
-    console.log('Received POST request to /messages');
+  // SSE endpoint for establishing the stream (GET /sse and /sse/)
+  app.get('/sse', handleSseRequest);
+  app.get('/sse/', handleSseRequest);
+
+  // Messages endpoint handler (shared between /messages and /messages/)
+  const handleMessagesRequest = async (req: import('express').Request, res: import('express').Response) => {
     // Extract session ID from URL query parameter
     const sessionId = req.query.sessionId as string | undefined;
     if (!sessionId) {
-      console.error('No session ID provided in request URL');
+      log('warn', 'message_missing_session', { path: req.path });
       res.status(400).send('Missing sessionId parameter');
       return;
     }
 
+    log('info', 'message_received', { sessionId, path: req.path });
+
     const transport = transports[sessionId];
     if (!transport) {
-      console.error(`No active transport found for session ID: ${sessionId}`);
+      log('warn', 'message_session_not_found', { sessionId });
       res.status(404).send('Session not found');
       return;
     }
 
     try {
       // Handle the POST message with the transport
-      // Pass req.body to avoid known gotcha in some TypeScript SDK versions
+      // Pass req.body as the third argument (parsedBody) to handlePostMessage.
+      // This is necessary because in some TypeScript SDK versions, the method
+      // may not properly parse the request body from the IncomingMessage stream,
+      // so providing the pre-parsed body ensures reliable message handling.
       await transport.handlePostMessage(req, res, req.body);
     } catch (error) {
-      console.error('Error handling request:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      log('error', 'message_handling_error', { sessionId, error: errorMessage });
       if (!res.headersSent) {
         res.status(500).send('Error handling request');
       }
     }
-  });
+  };
+
+  // Messages endpoint for receiving client JSON-RPC requests (POST /messages and /messages/)
+  app.post('/messages', handleMessagesRequest);
+  app.post('/messages/', handleMessagesRequest);
 
   // Start the server
-  app.listen(port, () => {
-    console.log(`UniTR MCP Server (SSE mode) listening on port ${port}`);
-    console.log(`SSE endpoint: GET http://localhost:${port}/sse`);
-    console.log(`Messages endpoint: POST http://localhost:${port}/messages`);
+  app.listen(port, host, () => {
+    log('info', 'server_started', { 
+      transport: 'sse', 
+      host, 
+      port,
+      endpoints: {
+        health: `http://${host}:${port}/health`,
+        sse: `http://${host}:${port}/sse`,
+        messages: `http://${host}:${port}/messages`
+      }
+    });
   });
 
   // Handle server shutdown
   process.on('SIGINT', async () => {
-    console.log('Shutting down server...');
+    log('info', 'server_shutdown_started', { activeSessions: Object.keys(transports).length });
     // Close all active transports to properly clean up resources
     for (const sessionId in transports) {
       try {
-        console.log(`Closing transport for session ${sessionId}`);
         await transports[sessionId].close();
         delete transports[sessionId];
+        log('info', 'session_closed_on_shutdown', { sessionId });
       } catch (error) {
-        console.error(`Error closing transport for session ${sessionId}:`, error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        log('error', 'session_close_error', { sessionId, error: errorMessage });
       }
     }
-    console.log('Server shutdown complete');
+    log('info', 'server_shutdown_complete');
     process.exit(0);
   });
 }
 
 // Main entry point
 async function main() {
-  const useSSE = process.argv.includes('--sse') || process.env.MCP_SSE_MODE === 'true';
-  const port = parseInt(process.env.MCP_SSE_PORT || '3000', 10);
-
-  if (useSSE) {
-    await startSseServer(port);
+  // Determine transport mode: MCP_TRANSPORT env var takes precedence, then --sse flag
+  const transport = process.env.MCP_TRANSPORT?.toLowerCase() || 
+    (process.argv.includes('--sse') ? 'sse' : 'stdio');
+  
+  if (transport === 'sse') {
+    const host = process.env.HOST || '127.0.0.1';
+    const port = parseInt(process.env.PORT || '3000', 10);
+    await startSseServer(host, port);
   } else {
     await startStdioServer();
   }
