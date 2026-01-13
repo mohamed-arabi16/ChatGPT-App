@@ -66,6 +66,7 @@ export function buildEligibilitySnapshot(
     
     const reasons: EligibilityReason[] = [];
     const missingInfo: string[] = [];
+    const missingFields: string[] = [];
     const assumptions: string[] = [];
     
     // Check education level prerequisite
@@ -94,7 +95,7 @@ export function buildEligibilitySnapshot(
     
     // Evaluate each requirement
     for (const req of programDetail.requirements) {
-      const evaluation = evaluateRequirement(req, input.profile, missingInfo, assumptions);
+      const evaluation = evaluateRequirement(req, input.profile, missingInfo, missingFields, assumptions);
       if (evaluation) {
         reasons.push(evaluation);
       }
@@ -109,6 +110,7 @@ export function buildEligibilitySnapshot(
         status,
         reasons,
         missing_info: missingInfo,
+        missing_fields: missingFields,
         assumptions,
         disclaimer: `${DISCLAIMER_AR}\n\n${DISCLAIMER_EN}`,
       },
@@ -193,19 +195,16 @@ function evaluateRequirement(
   req: RequirementOutput,
   profile: BuildEligibilitySnapshotInput['profile'],
   missingInfo: string[],
+  missingFields: string[],
   assumptions: string[]
 ): EligibilityReason | null {
   switch (req.rule_type) {
     case 'gpa_minimum': {
       if (profile.gpa === undefined) {
         missingInfo.push('GPA / المعدل التراكمي');
-        return {
-          rule_type: 'gpa_minimum',
-          passed: false,
-          reason_ar: `يتطلب البرنامج معدل ${req.rule_value} - لم يتم تقديم المعدل`,
-          reason_en: `Program requires GPA of ${req.rule_value} - GPA not provided`,
-          data_driven: true,
-        };
+        missingFields.push('gpa');
+        // Return null for missing info - don't treat as failure
+        return null;
       }
       
       const requiredGpa = parseFloat(req.rule_value);
@@ -231,13 +230,9 @@ function evaluateRequirement(
         if (langReq.type === 'english') {
           if (!profile.english_score) {
             missingInfo.push('English proficiency score / درجة اللغة الإنجليزية');
-            return {
-              rule_type: 'language_proficiency',
-              passed: false,
-              reason_ar: `يتطلب البرنامج إثبات إتقان اللغة الإنجليزية - لم يتم تقديم الدرجة`,
-              reason_en: `Program requires English proficiency - score not provided`,
-              data_driven: true,
-            };
+            missingFields.push('english_score');
+            // Return null for missing info - don't treat as failure
+            return null;
           }
           
           let passed = false;
@@ -263,13 +258,9 @@ function evaluateRequirement(
         if (langReq.type === 'turkish') {
           if (!profile.turkish_score) {
             missingInfo.push('Turkish proficiency score / درجة اللغة التركية');
-            return {
-              rule_type: 'language_proficiency',
-              passed: false,
-              reason_ar: `يتطلب البرنامج إثبات إتقان اللغة التركية - لم يتم تقديم الدرجة`,
-              reason_en: `Program requires Turkish proficiency - score not provided`,
-              data_driven: true,
-            };
+            missingFields.push('turkish_score');
+            // Return null for missing info - don't treat as failure
+            return null;
           }
           
           // Simple level comparison (B2 is usually minimum)
@@ -298,7 +289,9 @@ function evaluateRequirement(
     case 'portfolio_required': {
       if (profile.has_portfolio === undefined) {
         missingInfo.push('Portfolio status / حالة ملف الأعمال');
-        assumptions.push('Portfolio requirement status unknown');
+        missingFields.push('has_portfolio');
+        // Return null for missing info - don't treat as failure
+        return null;
       }
       
       const passed = profile.has_portfolio === true;
@@ -318,7 +311,9 @@ function evaluateRequirement(
     case 'work_experience': {
       if (profile.work_experience_years === undefined) {
         missingInfo.push('Work experience / الخبرة العملية');
-        assumptions.push('Work experience not provided - cannot evaluate');
+        missingFields.push('work_experience_years');
+        // Return null for missing info - don't treat as failure
+        return null;
       }
       break;
     }
@@ -333,13 +328,24 @@ function evaluateRequirement(
 }
 
 function determineStatus(reasons: EligibilityReason[], missingInfo: string[]): EligibilityStatus {
-  // If any required check failed, unlikely eligible
+  // Key principle: 
+  // 1. Explicit disqualifiers (education level, GPA below min) → "unlikely"
+  // 2. Missing data → "needs_review" (NOT unlikely)
+  // 3. All requirements met → "likely_eligible"
+  
+  // First, check for explicit disqualifiers (actual failures, not missing data)
+  // These should result in "unlikely" regardless of missing info
   const failedRequired = reasons.filter(r => !r.passed && r.data_driven);
   
   if (failedRequired.length > 0) {
-    // Check if it's a major failure (education level, GPA)
+    // Check if it's a major/hard failure (education level prerequisite, GPA below minimum)
     const majorFailures = failedRequired.filter(r => 
-      r.rule_type === 'gpa_minimum' || r.reason_en.includes('Education level')
+      r.rule_type === 'gpa_minimum' || 
+      r.reason_en.toLowerCase().includes('education level') ||
+      r.reason_en.toLowerCase().includes('bachelor degree') ||
+      r.reason_en.toLowerCase().includes('master degree') ||
+      r.reason_en.toLowerCase().includes('require a bachelor') ||
+      r.reason_en.toLowerCase().includes('require a master')
     );
     
     if (majorFailures.length > 0) {
@@ -347,14 +353,14 @@ function determineStatus(reasons: EligibilityReason[], missingInfo: string[]): E
     }
   }
   
-  // If too much info is missing, needs review
-  if (missingInfo.length >= 2) {
+  // If any required info is missing but no hard disqualifiers, status is needs_review
+  if (missingInfo.length > 0) {
     return 'needs_review';
   }
   
   // If all passed, likely eligible
   const allPassed = reasons.every(r => r.passed);
-  if (allPassed && missingInfo.length === 0) {
+  if (allPassed) {
     return 'likely_eligible';
   }
   

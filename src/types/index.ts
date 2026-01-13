@@ -277,6 +277,8 @@ export interface EligibilitySnapshotOutput {
   status: EligibilityStatus;
   reasons: EligibilityReason[];
   missing_info: string[];
+  /** Machine-readable list of missing fields (e.g., ["gpa", "english_score"]) */
+  missing_fields: string[];
   assumptions: string[];
   disclaimer: string;
 }
@@ -302,9 +304,18 @@ export interface ChecklistItemOutput {
   why_needed_en: string;
   priority: 'required' | 'recommended';
   estimated_days: number | null;
+  /** Whether this item's estimated_days is from verified DB data or a typical estimate */
+  estimated_days_verified: boolean;
+  /** Source of this requirement: 'verified' (from ProgramDocumentRule) or 'guidance' (general tips) */
+  source_type: 'verified' | 'guidance';
 }
 
 export interface DocumentChecklistOutput {
+  /** Items from verified program requirements (from ProgramDocumentRule) */
+  verified_items: ChecklistItemOutput[];
+  /** General guidance items (not from DB, marked as non-binding) */
+  guidance_items: ChecklistItemOutput[];
+  /** Combined items for backward compatibility */
   items: ChecklistItemOutput[];
   unknowns: string[];
   assumptions: string[];

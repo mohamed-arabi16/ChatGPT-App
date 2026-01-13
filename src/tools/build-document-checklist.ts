@@ -114,11 +114,15 @@ export function buildDocumentChecklist(
       };
     }
     
-    const items: ChecklistItemOutput[] = [];
+    const verifiedItems: ChecklistItemOutput[] = [];
+    const guidanceItems: ChecklistItemOutput[] = [];
     const unknowns: string[] = [];
     const assumptions: string[] = [];
     
-    // Process documents from program
+    // Get apostille note once at function level to avoid duplicate calls
+    const apostilleNote = getApostilleNotes(input.profile.nationality);
+    
+    // Process documents from program (these are VERIFIED from ProgramDocumentRule)
     for (const doc of programDetail.documents) {
       const whyNeeded = WHY_NEEDED[doc.doc_key] || {
         ar: 'مطلوبة وفقاً لمتطلبات البرنامج',
@@ -142,7 +146,10 @@ export function buildDocumentChecklist(
         assumptions.push(`${doc.label_en} requires both translation and notarization based on default rules`);
       }
       
-      items.push({
+      // Items from DB are VERIFIED
+      const estimatedDaysVerified = doc.estimated_days !== null;
+      
+      verifiedItems.push({
         doc_key: doc.doc_key,
         label_ar: doc.label_ar,
         label_en: doc.label_en,
@@ -150,20 +157,46 @@ export function buildDocumentChecklist(
         required: doc.required,
         translation_required: doc.translation_required,
         notarization_required: doc.notarization_required,
-        apostille_notes: getApostilleNotes(input.profile.nationality),
+        apostille_notes: apostilleNote,
         why_needed_ar: whyNeeded.ar,
         why_needed_en: whyNeeded.en,
         priority: doc.required ? 'required' : 'recommended',
         estimated_days: doc.estimated_days,
+        estimated_days_verified: estimatedDaysVerified,
+        source_type: 'verified',
       });
     }
     
-    // Sort: required first, then by estimated days
-    items.sort((a, b) => {
+    // Add general GUIDANCE items (non-binding tips based on profile)
+    // These are NOT from database but general advice
+    if (apostilleNote) {
+      guidanceItems.push({
+        doc_key: 'embassy_attestation_guidance',
+        label_ar: 'التصديق من السفارة (إرشاد عام)',
+        label_en: 'Embassy Attestation (General Guidance)',
+        applies_to: `${input.profile.nationality} applicants`,
+        required: false,
+        translation_required: false,
+        notarization_required: false,
+        apostille_notes: apostilleNote,
+        why_needed_ar: 'قد يكون مطلوباً حسب الجنسية - يرجى التحقق مع الجامعة',
+        why_needed_en: 'May be required based on nationality - please verify with university',
+        priority: 'recommended',
+        estimated_days: 14,
+        estimated_days_verified: false,
+        source_type: 'guidance',
+      });
+    }
+    
+    // Sort verified items: required first, then by estimated days
+    verifiedItems.sort((a, b) => {
       if (a.priority === 'required' && b.priority !== 'required') return -1;
       if (b.priority === 'required' && a.priority !== 'required') return 1;
       return (a.estimated_days || 0) - (b.estimated_days || 0);
     });
+    
+    // Combine for backward compatibility (verified first, then guidance)
+    const allItems = [...verifiedItems, ...guidanceItems];
     
     // Check for missing document info
     if (programDetail.documents.length === 0) {
@@ -173,7 +206,9 @@ export function buildDocumentChecklist(
     return {
       success: true,
       data: {
-        items,
+        verified_items: verifiedItems,
+        guidance_items: guidanceItems,
+        items: allItems,
         unknowns,
         assumptions,
       },

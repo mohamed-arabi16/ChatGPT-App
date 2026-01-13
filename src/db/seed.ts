@@ -502,6 +502,86 @@ const programs: SeedProgram[] = [
     tuition_max: 5000,
     currency: 'USD',
     intakes: ['September', 'February']
+  },
+  // Computer Engineering programs (addressing dataset gap from PRD)
+  {
+    id: 'prog-aydin-ce-bs',
+    university_id: 'univ-istanbul-aydin',
+    program_name_ar: 'هندسة الحاسوب',
+    program_name_en: 'Computer Engineering',
+    degree_level: 'bachelor',
+    language: 'en',
+    city: 'Istanbul',
+    tuition_min: 4500,
+    tuition_max: 5500,
+    currency: 'USD',
+    intakes: ['September', 'February']
+  },
+  {
+    id: 'prog-bau-ce-bs',
+    university_id: 'univ-bahcesehir',
+    program_name_ar: 'هندسة الحاسوب',
+    program_name_en: 'Computer Engineering',
+    degree_level: 'bachelor',
+    language: 'en',
+    city: 'Istanbul',
+    tuition_min: 8500,
+    tuition_max: 9500,
+    currency: 'USD',
+    intakes: ['September', 'February']
+  },
+  {
+    id: 'prog-altinbas-ce-bs',
+    university_id: 'univ-altinbas',
+    program_name_ar: 'هندسة الحاسوب',
+    program_name_en: 'Computer Engineering',
+    degree_level: 'bachelor',
+    language: 'en',
+    city: 'Istanbul',
+    tuition_min: 4000,
+    tuition_max: 5000,
+    currency: 'USD',
+    intakes: ['September', 'February']
+  },
+  {
+    id: 'prog-bilkent-ce-bs',
+    university_id: 'univ-ankara-bilkent',
+    program_name_ar: 'هندسة الحاسوب',
+    program_name_en: 'Computer Engineering',
+    degree_level: 'bachelor',
+    language: 'en',
+    city: 'Ankara',
+    tuition_min: 14000,
+    tuition_max: 16000,
+    currency: 'USD',
+    intakes: ['September']
+  },
+  // Software Engineering programs
+  {
+    id: 'prog-aydin-se-bs',
+    university_id: 'univ-istanbul-aydin',
+    program_name_ar: 'هندسة البرمجيات',
+    program_name_en: 'Software Engineering',
+    degree_level: 'bachelor',
+    language: 'en',
+    city: 'Istanbul',
+    tuition_min: 4500,
+    tuition_max: 5500,
+    currency: 'USD',
+    intakes: ['September', 'February']
+  },
+  {
+    id: 'prog-bau-se-bs',
+    university_id: 'univ-bahcesehir',
+    program_name_ar: 'هندسة البرمجيات',
+    program_name_en: 'Software Engineering',
+    degree_level: 'bachelor',
+    language: 'en',
+    city: 'Istanbul',
+    tuition_min: 8500,
+    tuition_max: 9500,
+    currency: 'USD',
+    intakes: ['September', 'February']
   }
 ];
 
