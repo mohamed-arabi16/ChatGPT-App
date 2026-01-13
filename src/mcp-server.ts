@@ -428,9 +428,9 @@ async function startSseServer(host: string = '127.0.0.1', port: number = 3000) {
     try {
       // Handle the POST message with the transport
       // Pass req.body as the third argument (parsedBody) to handlePostMessage.
-      // This is necessary because in some TypeScript SDK versions, the method
-      // may not properly parse the request body from the IncomingMessage stream,
-      // so providing the pre-parsed body ensures reliable message handling.
+      // This is required because Express parses the JSON body into req.body, and
+      // handlePostMessage needs the pre-parsed body rather than trying to parse
+      // the raw request stream (which would be empty since Express already consumed it).
       await transport.handlePostMessage(req, res, req.body);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
