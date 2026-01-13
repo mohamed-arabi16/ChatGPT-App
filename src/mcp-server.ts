@@ -1,10 +1,13 @@
 /**
  * MCP Server for UniTR Admissions Assistant
  * Exposes tools for Turkish university program search, eligibility, and planning
+ * Supports both stdio transport (default) and SSE transport (with --sse flag)
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -31,6 +34,9 @@ import {
 // Initialize database
 runMigrations();
 const repository = new ProgramRepository();
+
+// Store transports by session ID (for SSE mode)
+const transports: Record<string, SSEServerTransport> = {};
 
 // Define MCP tools
 const TOOLS: Tool[] = [
@@ -205,124 +211,228 @@ const TOOLS: Tool[] = [
   },
 ];
 
-// Create MCP server
-const server = new Server(
-  {
-    name: 'unitr-admissions-assistant',
-    version: '1.0.0',
-  },
-  {
-    capabilities: {
-      tools: {},
+// Factory function to create configured MCP server instance
+function createServer(): Server {
+  const server = new Server(
+    {
+      name: 'unitr-admissions-assistant',
+      version: '1.0.0',
     },
-  }
-);
-
-// Handle tool listing
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return { tools: TOOLS };
-});
-
-// Handle tool execution
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
-  
-  try {
-    switch (name) {
-      case 'search_programs': {
-        const input = searchProgramsInputSchema.parse(args);
-        const result = searchPrograms(input, repository);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
-      }
-      
-      case 'get_program_detail': {
-        const input = getProgramDetailInputSchema.parse(args);
-        const result = getProgramDetail(input, repository);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
-      }
-      
-      case 'build_eligibility_snapshot': {
-        const input = buildEligibilitySnapshotInputSchema.parse(args);
-        const result = buildEligibilitySnapshot(input, repository);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
-      }
-      
-      case 'build_document_checklist': {
-        const input = buildDocumentChecklistInputSchema.parse(args);
-        const result = buildDocumentChecklist(input, repository);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
-      }
-      
-      case 'build_timeline': {
-        const input = buildTimelineInputSchema.parse(args);
-        const result = buildTimeline(input, repository);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
-      }
-      
-      default:
-        throw new Error(`Unknown tool: ${name}`);
+    {
+      capabilities: {
+        tools: {},
+      },
     }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            success: false,
-            error: {
-              code: 'TOOL_ERROR',
-              message_ar: 'حدث خطأ أثناء تنفيذ الأداة',
-              message_en: errorMessage,
-            },
-          }),
-        },
-      ],
-      isError: true,
-    };
-  }
-});
+  );
 
-// Start server
-async function main() {
+  // Handle tool listing
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    return { tools: TOOLS };
+  });
+
+  // Handle tool execution
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
+    
+    try {
+      switch (name) {
+        case 'search_programs': {
+          const input = searchProgramsInputSchema.parse(args);
+          const result = searchPrograms(input, repository);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          };
+        }
+        
+        case 'get_program_detail': {
+          const input = getProgramDetailInputSchema.parse(args);
+          const result = getProgramDetail(input, repository);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          };
+        }
+        
+        case 'build_eligibility_snapshot': {
+          const input = buildEligibilitySnapshotInputSchema.parse(args);
+          const result = buildEligibilitySnapshot(input, repository);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          };
+        }
+        
+        case 'build_document_checklist': {
+          const input = buildDocumentChecklistInputSchema.parse(args);
+          const result = buildDocumentChecklist(input, repository);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          };
+        }
+        
+        case 'build_timeline': {
+          const input = buildTimelineInputSchema.parse(args);
+          const result = buildTimeline(input, repository);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          };
+        }
+        
+        default:
+          throw new Error(`Unknown tool: ${name}`);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: {
+                code: 'TOOL_ERROR',
+                message_ar: 'حدث خطأ أثناء تنفيذ الأداة',
+                message_en: errorMessage,
+              },
+            }),
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
+  return server;
+}
+
+// Start server in stdio mode
+async function startStdioServer() {
+  const server = createServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error('UniTR MCP Server running on stdio');
+}
+
+// Start server in SSE mode
+async function startSseServer(port: number = 3000) {
+  const app = createMcpExpressApp();
+
+  // SSE endpoint for establishing the stream (GET /sse)
+  app.get('/sse', async (req, res) => {
+    console.log('Received GET request to /sse (establishing SSE stream)');
+    try {
+      // Create a new SSE transport for the client
+      // The endpoint for POST messages is '/messages'
+      const transport = new SSEServerTransport('/messages', res);
+      const sessionId = transport.sessionId;
+      transports[sessionId] = transport;
+
+      // Set up onclose handler to clean up transport when closed
+      transport.onclose = () => {
+        console.log(`SSE transport closed for session ${sessionId}`);
+        delete transports[sessionId];
+      };
+
+      // Connect the transport to a new MCP server instance
+      const server = createServer();
+      await server.connect(transport);
+      console.log(`Established SSE stream with session ID: ${sessionId}`);
+    } catch (error) {
+      console.error('Error establishing SSE stream:', error);
+      if (!res.headersSent) {
+        res.status(500).send('Error establishing SSE stream');
+      }
+    }
+  });
+
+  // Messages endpoint for receiving client JSON-RPC requests (POST /messages)
+  app.post('/messages', async (req, res) => {
+    console.log('Received POST request to /messages');
+    // Extract session ID from URL query parameter
+    const sessionId = req.query.sessionId as string | undefined;
+    if (!sessionId) {
+      console.error('No session ID provided in request URL');
+      res.status(400).send('Missing sessionId parameter');
+      return;
+    }
+
+    const transport = transports[sessionId];
+    if (!transport) {
+      console.error(`No active transport found for session ID: ${sessionId}`);
+      res.status(404).send('Session not found');
+      return;
+    }
+
+    try {
+      // Handle the POST message with the transport
+      // Pass req.body to avoid known gotcha in some TypeScript SDK versions
+      await transport.handlePostMessage(req, res, req.body);
+    } catch (error) {
+      console.error('Error handling request:', error);
+      if (!res.headersSent) {
+        res.status(500).send('Error handling request');
+      }
+    }
+  });
+
+  // Start the server
+  app.listen(port, () => {
+    console.log(`UniTR MCP Server (SSE mode) listening on port ${port}`);
+    console.log(`SSE endpoint: GET http://localhost:${port}/sse`);
+    console.log(`Messages endpoint: POST http://localhost:${port}/messages`);
+  });
+
+  // Handle server shutdown
+  process.on('SIGINT', async () => {
+    console.log('Shutting down server...');
+    // Close all active transports to properly clean up resources
+    for (const sessionId in transports) {
+      try {
+        console.log(`Closing transport for session ${sessionId}`);
+        await transports[sessionId].close();
+        delete transports[sessionId];
+      } catch (error) {
+        console.error(`Error closing transport for session ${sessionId}:`, error);
+      }
+    }
+    console.log('Server shutdown complete');
+    process.exit(0);
+  });
+}
+
+// Main entry point
+async function main() {
+  const useSSE = process.argv.includes('--sse') || process.env.MCP_SSE_MODE === 'true';
+  const port = parseInt(process.env.MCP_SSE_PORT || '3000', 10);
+
+  if (useSSE) {
+    await startSseServer(port);
+  } else {
+    await startStdioServer();
+  }
 }
 
 main().catch((error) => {
