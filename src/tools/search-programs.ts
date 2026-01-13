@@ -235,7 +235,9 @@ export function searchPrograms(
         // Suggest near-equivalent programs
         const nearEqKeywords = getNearEquivalentKeywords(originalKeywords);
         if (nearEqKeywords.length > 0) {
-          suggestions.push(`هل تقبل بدائل مثل: ${nearEqKeywords.join('، ')}؟ / Would you accept alternatives like: ${nearEqKeywords.join(', ')}?`);
+          const nearEqKeywordsAr = nearEqKeywords.join('، ');
+          const nearEqKeywordsEn = nearEqKeywords.join(', ');
+          suggestions.push(`هل تقبل بدائل مثل: ${nearEqKeywordsAr}؟ / Would you accept alternatives like: ${nearEqKeywordsEn}?`);
           
           // Actually search for near-equivalents
           const nearEqExpanded = expandKeywords(nearEqKeywords);

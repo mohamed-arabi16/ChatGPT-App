@@ -119,6 +119,9 @@ export function buildDocumentChecklist(
     const unknowns: string[] = [];
     const assumptions: string[] = [];
     
+    // Get apostille note once at function level to avoid duplicate calls
+    const apostilleNote = getApostilleNotes(input.profile.nationality);
+    
     // Process documents from program (these are VERIFIED from ProgramDocumentRule)
     for (const doc of programDetail.documents) {
       const whyNeeded = WHY_NEEDED[doc.doc_key] || {
@@ -154,7 +157,7 @@ export function buildDocumentChecklist(
         required: doc.required,
         translation_required: doc.translation_required,
         notarization_required: doc.notarization_required,
-        apostille_notes: getApostilleNotes(input.profile.nationality),
+        apostille_notes: apostilleNote,
         why_needed_ar: whyNeeded.ar,
         why_needed_en: whyNeeded.en,
         priority: doc.required ? 'required' : 'recommended',
@@ -166,7 +169,6 @@ export function buildDocumentChecklist(
     
     // Add general GUIDANCE items (non-binding tips based on profile)
     // These are NOT from database but general advice
-    const apostilleNote = getApostilleNotes(input.profile.nationality);
     if (apostilleNote) {
       guidanceItems.push({
         doc_key: 'embassy_attestation_guidance',
