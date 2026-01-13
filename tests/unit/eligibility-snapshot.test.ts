@@ -143,6 +143,94 @@ describe('buildEligibilitySnapshot', () => {
     // All reasons should be marked as data-driven
     expect(result.data?.reasons.every(r => r.data_driven === true)).toBe(true);
   });
+
+  // New tests for missing_fields machine-readable list
+  it('should include machine-readable missing_fields list', () => {
+    const input: BuildEligibilitySnapshotInput = {
+      profile: {
+        nationality: 'Egyptian',
+        current_education_level: 'high_school',
+        desired_degree_level: 'bachelor',
+      },
+      program_id: 'prog-bachelor',
+    };
+
+    const result = buildEligibilitySnapshot(input, repository);
+
+    expect(result.success).toBe(true);
+    expect(result.data?.missing_fields).toBeDefined();
+    expect(Array.isArray(result.data?.missing_fields)).toBe(true);
+  });
+
+  it('should include gpa in missing_fields when GPA not provided', () => {
+    const input: BuildEligibilitySnapshotInput = {
+      profile: {
+        nationality: 'Egyptian',
+        current_education_level: 'high_school',
+        desired_degree_level: 'bachelor',
+      },
+      program_id: 'prog-bachelor',
+    };
+
+    const result = buildEligibilitySnapshot(input, repository);
+
+    expect(result.success).toBe(true);
+    expect(result.data?.missing_fields).toContain('gpa');
+  });
+
+  it('should include english_score in missing_fields when English score not provided', () => {
+    const input: BuildEligibilitySnapshotInput = {
+      profile: {
+        nationality: 'Egyptian',
+        current_education_level: 'high_school',
+        desired_degree_level: 'bachelor',
+        gpa: 80, // GPA provided
+      },
+      program_id: 'prog-bachelor',
+    };
+
+    const result = buildEligibilitySnapshot(input, repository);
+
+    expect(result.success).toBe(true);
+    expect(result.data?.missing_fields).toContain('english_score');
+  });
+
+  it('should return needs_review (not unlikely) when only data is missing', () => {
+    const input: BuildEligibilitySnapshotInput = {
+      profile: {
+        nationality: 'Egyptian',
+        current_education_level: 'high_school',
+        desired_degree_level: 'bachelor',
+        // No GPA or English score provided
+      },
+      program_id: 'prog-bachelor',
+    };
+
+    const result = buildEligibilitySnapshot(input, repository);
+
+    expect(result.success).toBe(true);
+    // Missing data should NOT result in "unlikely"
+    expect(result.data?.status).toBe('needs_review');
+    expect(result.data?.missing_fields.length).toBeGreaterThan(0);
+  });
+
+  it('should return unlikely only for explicit disqualifiers like GPA below min', () => {
+    const input: BuildEligibilitySnapshotInput = {
+      profile: {
+        nationality: 'Egyptian',
+        current_education_level: 'high_school',
+        desired_degree_level: 'bachelor',
+        gpa: 30, // Well below minimum of 60
+        english_score: { type: 'ielts', score: 6.0 },
+      },
+      program_id: 'prog-bachelor',
+    };
+
+    const result = buildEligibilitySnapshot(input, repository);
+
+    expect(result.success).toBe(true);
+    expect(result.data?.status).toBe('unlikely');
+  });
 });
 
 function seedTestData(db: Database.Database) {

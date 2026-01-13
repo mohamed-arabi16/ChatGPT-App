@@ -130,6 +130,62 @@ describe('searchPrograms', () => {
     expect(result.success).toBe(true);
     expect(result.data?.programs[0]).toHaveProperty('verification_status');
   });
+
+  // New tests for keyword expansion and synonyms
+  it('should include query_info with original and expanded keywords', () => {
+    const input: SearchProgramsInput = {
+      profile: {
+        major_keywords: ['cs'],
+      },
+    };
+
+    const result = searchPrograms(input, repository);
+
+    expect(result.success).toBe(true);
+    expect(result.data?.query_info).toBeDefined();
+    expect(result.data?.query_info.original_keywords).toContain('cs');
+    expect(result.data?.query_info.expanded_keywords.length).toBeGreaterThan(1);
+  });
+
+  it('should expand CS keyword to include computer science', () => {
+    const input: SearchProgramsInput = {
+      profile: {
+        major_keywords: ['cs'],
+      },
+    };
+
+    const result = searchPrograms(input, repository);
+
+    expect(result.success).toBe(true);
+    expect(result.data?.query_info.expanded_keywords).toContain('computer science');
+  });
+
+  it('should provide near_equivalents when exact match fails', () => {
+    const input: SearchProgramsInput = {
+      profile: {
+        major_keywords: ['computer engineering'],
+        budget_max: 100, // impossibly low to get no exact matches
+      },
+    };
+
+    const result = searchPrograms(input, repository);
+
+    expect(result.success).toBe(true);
+    expect(result.data?.near_equivalents).toBeDefined();
+  });
+
+  it('should show synonyms applied in query_info', () => {
+    const input: SearchProgramsInput = {
+      profile: {
+        major_keywords: ['ce'],
+      },
+    };
+
+    const result = searchPrograms(input, repository);
+
+    expect(result.success).toBe(true);
+    expect(result.data?.query_info.synonyms_applied.length).toBeGreaterThan(0);
+  });
 });
 
 function seedTestData(db: Database.Database) {
@@ -146,7 +202,8 @@ function seedTestData(db: Database.Database) {
       ('prog-1', 'test-uni-1', 'علوم الحاسوب', 'Computer Science', 'bachelor', 'en', 'Istanbul', 5000, 6000, 'USD', '["September", "February"]'),
       ('prog-2', 'test-uni-1', 'إدارة الأعمال', 'Business Administration', 'bachelor', 'en', 'Istanbul', 4000, 5000, 'USD', '["September"]'),
       ('prog-3', 'test-uni-1', 'ماجستير إدارة الأعمال', 'MBA', 'master', 'en', 'Istanbul', 10000, 15000, 'USD', '["September"]'),
-      ('prog-4', 'test-uni-1', 'القانون', 'Law', 'bachelor', 'tr', 'Istanbul', 3000, 4000, 'USD', '["September"]')
+      ('prog-4', 'test-uni-1', 'القانون', 'Law', 'bachelor', 'tr', 'Istanbul', 3000, 4000, 'USD', '["September"]'),
+      ('prog-5', 'test-uni-1', 'هندسة الحاسوب', 'Computer Engineering', 'bachelor', 'en', 'Istanbul', 5000, 6000, 'USD', '["September"]')
   `).run();
 
   // Insert verification
