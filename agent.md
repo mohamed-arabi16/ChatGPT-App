@@ -177,6 +177,29 @@ Provide accurate metadata to describe your app's features/capabilities. This hel
 - Capabilities and use cases
 - Tags and categories
 
+**Example metadata in MCP server:**
+```typescript
+// In your MCP server configuration
+const appMetadata = {
+  name: "UniTR Admissions Assistant",
+  description: "Turkish University Registration Assistant for Arabic-speaking students",
+  version: "1.0.0",
+  supportedLanguages: ["ar", "en"],
+  capabilities: [
+    "Search university programs",
+    "Assess eligibility",
+    "Generate document checklists"
+  ]
+};
+
+// Tool description example
+{
+  name: "search_programs",
+  description: "Search Turkish university programs by major, degree level, language, and budget",
+  inputSchema: { /* ... */ }
+}
+```
+
 **References:**
 - [OpenAI Platform Quickstart](https://platform.openai.com/docs/quickstart)
 - [Apps SDK Examples](https://github.com/openai/openai-apps-sdk-examples)
@@ -253,24 +276,34 @@ Adhere to OpenAI's app submission, review, and monetization guidelines when read
 - ✅ Error handling for all failure modes
 - ✅ Performance optimization completed
 
-### Quality and Security Review
-Review security best practices, handle errors gracefully, and make sure your MCP server is robust under real-world usage.
+### Security and Quality Implementation
+Implement security best practices and quality measures to ensure your MCP server is robust under real-world usage.
 
-**Security considerations:**
-- Input validation on all tool parameters
-- Rate limiting on API endpoints
-- SQL injection prevention (use parameterized queries)
-- XSS prevention in UI components
-- CSRF protection where applicable
-- Dependency vulnerability scanning
+**Security implementation checklist:**
+- ✅ Input validation on all tool parameters
+- ✅ Rate limiting on API endpoints
+- ✅ SQL injection prevention (use parameterized queries)
+- ✅ XSS prevention in UI components
+- ✅ CSRF protection where applicable
+- ✅ Dependency vulnerability scanning
+- ✅ Regular security audits
 
-**Quality considerations:**
-- Comprehensive error messages
-- Logging and monitoring
-- Graceful degradation
-- Retry logic for transient failures
-- Timeout handling
-- Data validation
+**Quality implementation checklist:**
+- ✅ Comprehensive error messages
+- ✅ Logging and monitoring
+- ✅ Graceful degradation
+- ✅ Retry logic for transient failures
+- ✅ Timeout handling
+- ✅ Data validation
+- ✅ Performance profiling
+
+**Review process:**
+1. **Code review**: Peer review all changes before merging
+2. **Security scan**: Run automated security scanners (npm audit, Snyk, etc.)
+3. **Penetration testing**: Test for common vulnerabilities (OWASP Top 10)
+4. **Load testing**: Ensure performance under expected load
+5. **Error scenario testing**: Verify graceful handling of failures
+6. **Documentation review**: Ensure all security measures are documented
 
 **Reference:**
 - [OpenAI Apps SDK](https://developers.openai.com/apps-sdk)
