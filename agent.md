@@ -357,4 +357,4 @@ Explore example repositories for best practices and code organization:
 
 ---
 
-*This guide is based on official OpenAI documentation and community best practices as of January 2026. Always refer to the latest official documentation for the most up-to-date information.*
+*This guide is based on official OpenAI documentation and community best practices. Always refer to the latest official documentation for the most up-to-date information.*
